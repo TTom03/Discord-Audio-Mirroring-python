@@ -77,7 +77,7 @@ class UserAudioSink(Sink):
                             break
                 except Exception as exc:
                     logger.debug("Error checking queue size: %s", exc)
-                    continue
+                    # Do NOT continue here — we still want to attempt delivery.
 
                 try:
                     q.put_nowait(frame)
@@ -272,9 +272,10 @@ class AudioBridge:
 
         # ── Connect targets ───────────────────────────────────────────────
         for idx, target in enumerate(self.targets, start=1):
+            # Use fetch_guild to avoid stale cache after gateway reconnects.
             tg = self.bot.get_guild(target["guild_id"])
             if not tg:
-                logger.error("Target %d: guild %d not found – skipped.", idx, target["guild_id"])
+                logger.error("Target %d: guild %d not found in cache – skipped.", idx, target["guild_id"])
                 # Still add a dummy vc slot so queue indices stay aligned
                 self._target_vcs.append(None)  # type: ignore[arg-type]
                 continue
@@ -285,9 +286,18 @@ class AudioBridge:
                 self._target_vcs.append(None)  # type: ignore[arg-type]
                 continue
 
-            vc = await self._safe_connect(tc)
-            self._target_vcs.append(vc)
-            logger.info("Connected to target %d: %s / %s", idx, tg.name, tc.name)
+            try:
+                vc = await self._safe_connect(tc)
+                self._target_vcs.append(vc)
+                logger.info("Connected to target %d: %s / %s", idx, tg.name, tc.name)
+            except Exception as exc:
+                # A single target failing must NOT abort the whole bridge.
+                # Log, keep a None slot, and let the watchdog retry later.
+                logger.error(
+                    "Target %d: failed to connect to '%s' / '%s': %s – skipped.",
+                    idx, tg.name, tc.name, exc,
+                )
+                self._target_vcs.append(None)  # type: ignore[arg-type]
 
         # ── Start playback on every live target ───────────────────────────
         for i, vc in enumerate(self._target_vcs):
