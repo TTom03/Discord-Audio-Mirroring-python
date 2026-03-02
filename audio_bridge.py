@@ -365,13 +365,45 @@ class AudioBridge:
         if error:
             logger.error("Player error on target %d: %s", target_index, error)
 
-    def _on_recording_finished(self, sink: UserAudioSink) -> None:
-        """Called by py-cord when stop_recording() is invoked (sync callback)."""
+    async def _on_recording_finished(self, sink: UserAudioSink) -> None:
+        """Called by py-cord when stop_recording() is invoked (must be async)."""
         logger.info(
             "Recording ended. frames_in=%d frames_dropped=%d",
             sink._frames_in,
             sink._frames_dropped,
         )
+
+    async def _idle_watchdog(self) -> None:
+        """
+        Polls while the bridge is NOT running.
+        Handles the case where a Discord gateway reconnect caused us to miss
+        the on_voice_state_update event for the monitored user joining.
+        """
+        CHECK_INTERVAL = 15  # seconds
+        while not self._running:
+            await asyncio.sleep(CHECK_INTERVAL)
+            if self._running:
+                return
+            try:
+                guild = self.bot.get_guild(self.source_guild_id)
+                if guild is None:
+                    continue
+                member = await guild.fetch_member(self.source_user_id)
+                if (
+                    member.voice is not None
+                    and member.voice.channel is not None
+                    and member.voice.channel.id == self.source_channel_id
+                ):
+                    logger.info(
+                        "Idle watchdog: user %d found in source channel — starting bridge …",
+                        self.source_user_id,
+                    )
+                    await self.start()
+                    return
+            except asyncio.CancelledError:
+                return
+            except Exception as exc:
+                logger.debug("Idle watchdog check failed: %s", exc)
 
     async def _watchdog(self) -> None:
         """

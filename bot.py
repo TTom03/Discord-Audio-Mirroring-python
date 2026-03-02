@@ -139,6 +139,7 @@ async def on_ready() -> None:
             logger.exception("Failed to start bridge on ready: %s", exc)
     else:
         logger.info("Monitored user is NOT in source channel.  Waiting for them to join …")
+        asyncio.ensure_future(bridge._idle_watchdog())
 
 
 @bot.event
@@ -164,6 +165,7 @@ async def on_voice_state_update(
         logger.info("Monitored user left source channel.  Stopping bridge …")
         await bridge.stop()
         logger.info("Bridge stopped.  Waiting for user to rejoin …")
+        asyncio.ensure_future(bridge._idle_watchdog())
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Run
