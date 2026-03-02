@@ -36,11 +36,26 @@ Voice Bridge monitors a specific Discord user and broadcasts their audio to mult
 
 3. Create a `.env` file with your settings:
    ```env
-   DISCORD_TOKEN=your_bot_token
-   MONITORED_USER_ID=the_user_to_forward
-   MONITORED_GUILD_ID=the_server_with_source_channel
-   SOURCE_CHANNEL_ID=the_voice_channel_to_listen_to
-   TARGET_CHANNELS=target_channel_1,target_channel_2
+   BOT_TOKEN=your_bot_token_here
+   
+   # Source (the user to monitor and where to listen)
+   SOURCE_USER_ID=user_id_to_monitor
+   SOURCE_GUILD_ID=server_id_with_source_channel
+   SOURCE_CHANNEL_ID=voice_channel_id_to_listen_to
+   
+   # Targets (up to 3 target channels to forward audio to)
+   TARGET_1_GUILD_ID=target_server_1
+   TARGET_1_CHANNEL_ID=target_voice_channel_1
+   
+   TARGET_2_GUILD_ID=target_server_2
+   TARGET_2_CHANNEL_ID=target_voice_channel_2
+   
+   TARGET_3_GUILD_ID=target_server_3
+   TARGET_3_CHANNEL_ID=target_voice_channel_3
+   
+   # Optional: fine-tune audio settings
+   JITTER_BUFFER_FRAMES=2
+   MAX_QUEUE_FRAMES=100
    ```
 
 4. Run it:
@@ -50,12 +65,18 @@ Voice Bridge monitors a specific Discord user and broadcasts their audio to mult
 
 ## Configuration
 
-Edit `config.py` to change:
-- Which user to monitor
-- Which channels to forward to
-- Jitter buffer size (default 40ms works fine)
-- Reconnect retry settings
-- Log levels
+All settings are in `.env`. The main variables are:
+
+**Required:**
+- `BOT_TOKEN` — Your Discord bot token
+- `SOURCE_USER_ID` — The Discord user ID to monitor
+- `SOURCE_GUILD_ID` — The server where the source channel is
+- `SOURCE_CHANNEL_ID` — The voice channel to listen to
+- `TARGET_*_GUILD_ID` and `TARGET_*_CHANNEL_ID` — Up to 3 target servers/channels
+
+**Optional:**
+- `JITTER_BUFFER_FRAMES` — How many frames to buffer (default: 2)
+- `MAX_QUEUE_FRAMES` — Max queue depth per target (default: 100)
 
 ## How It Works
 
