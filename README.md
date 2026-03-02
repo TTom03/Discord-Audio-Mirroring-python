@@ -1,89 +1,82 @@
 # Voice Bridge
 
-A Discord bot that forwards one user's voice to multiple channels at the same time. Runs 24/7 with auto-reconnect and handles network issues gracefully.
-
-## Introduction
-
-Voice Bridge monitors a specific Discord user and broadcasts their audio to multiple target channels across different servers. Once configured, it runs automatically—starts forwarding audio when the user joins, stops when they leave. Built for reliability with proper error handling, memory management, and logging.
+A Discord bot that forwards one user's voice to multiple channels simultaneously.
 
 ## Features
 
-- Monitor one Discord user and broadcast their voice to multiple channels
-- Automatic start/stop based on user presence
-- Handles network issues with jitter buffering and auto-reconnect
-- Log rotation to prevent disk bloat
-- Thread-safe audio queues for each target
-- Health checks and metrics logging
-- Works with PM2 or systemd
+- Monitor one user and broadcast their audio
+- Auto start/stop with user presence
+- 24/7 with auto-reconnect
+- Jitter buffering for smooth audio
+- Health monitoring
 
-## Prerequisites
-- Python 3.13+
-- A Discord bot token (with voice permissions)
-- The servers and channels you want to use
+## Setup
 
-## Installation Instructions
+### 1. Clone & Install
+```bash
+git clone https://github.com/TTom03/Discord-Audio-Mirroring-python.git
+cd Discord-Audio-Mirroring-python
+pip install -r requirements.txt
+```
 
-1. Clone the repo:
-   ```bash
-   git clone https://github.com/yourusername/voice-bridge.git
-   cd voice-bridge
-   ```
+### 2. Configure `.env`
+```env
+BOT_TOKEN=your_bot_token
 
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+SOURCE_USER_ID=user_to_monitor
+SOURCE_GUILD_ID=source_server  
+SOURCE_CHANNEL_ID=source_channel
 
-3. Create a `.env` file with your settings:
-   ```env
-   BOT_TOKEN=your_bot_token_here
-   
-   # Source (the user to monitor and where to listen)
-   SOURCE_USER_ID=user_id_to_monitor
-   SOURCE_GUILD_ID=server_id_with_source_channel
-   SOURCE_CHANNEL_ID=voice_channel_id_to_listen_to
-   
-   # Targets (up to 3 target channels to forward audio to)
-   TARGET_1_GUILD_ID=target_server_1
-   TARGET_1_CHANNEL_ID=target_voice_channel_1
-   
-   TARGET_2_GUILD_ID=target_server_2
-   TARGET_2_CHANNEL_ID=target_voice_channel_2
-   
-   TARGET_3_GUILD_ID=target_server_3
-   TARGET_3_CHANNEL_ID=target_voice_channel_3
-   
-   # Optional: fine-tune audio settings
-   JITTER_BUFFER_FRAMES=2
-   MAX_QUEUE_FRAMES=100
-   ```
+TARGET_1_GUILD_ID=target_server_1
+TARGET_1_CHANNEL_ID=target_channel_1
 
-4. Run it:
-   ```bash
-   python bot.py
-   ```
+TARGET_2_GUILD_ID=target_server_2
+TARGET_2_CHANNEL_ID=target_channel_2
 
-## Configuration
+TARGET_3_GUILD_ID=target_server_3
+TARGET_3_CHANNEL_ID=target_channel_3
+```
 
-All settings are in `.env`. The main variables are:
+### 3. Run
 
-**Required:**
-- `BOT_TOKEN` — Your Discord bot token
-- `SOURCE_USER_ID` — The Discord user ID to monitor
-- `SOURCE_GUILD_ID` — The server where the source channel is
-- `SOURCE_CHANNEL_ID` — The voice channel to listen to
-- `TARGET_*_GUILD_ID` and `TARGET_*_CHANNEL_ID` — Up to 3 target servers/channels
+**Development:**
+```bash
+python bot.py
+```
 
-**Optional:**
-- `JITTER_BUFFER_FRAMES` — How many frames to buffer (default: 2)
-- `MAX_QUEUE_FRAMES` — Max queue depth per target (default: 100)
+**Production (PM2):**
+```bash
+npm install -g pm2
+pm2 start ecosystem.config.js
+pm2 logs voice-bridge
+pm2 save
+```
 
 ## How It Works
 
-The bot listens for audio from one user, captures it as PCM data, queues it for each target channel, and plays it back. Each target gets its own queue so if one channel lags, it doesn't affect the others.
+Captures audio from one user → Forwards to multiple channels → Plays in real-time.
 
-```
-Discord (Opus) → Decode → PCM → Queue per target → Re-encode → Send to targets
-```
+## Troubleshooting
 
-## Running It
+| Issue | Solution |
+|-------|----------|
+| Bot won't start | Check `.env` has all required variables |
+| No audio | Verify bot has `Connect` + `Speak` permissions |
+| High CPU/Memory | Run `pm2 logs voice-bridge` to check |
+
+## Files
+
+- `bot.py` - Main bot
+- `audio_bridge.py` - Audio routing  
+- `config.py` - Load settings
+- `ecosystem.config.js` - PM2 config
+
+## Requirements
+
+- Python 3.13+
+- py-cord ≥2.7.0
+- PyNaCl, python-dotenv, audioop-lts
+- libopus (system library)
+
+See `PRODUCTION.md` for advanced options.
+
