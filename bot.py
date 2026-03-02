@@ -148,24 +148,39 @@ async def on_voice_state_update(
     before: discord.VoiceState,
     after: discord.VoiceState,
 ) -> None:
-    if member.id != config.SOURCE_USER_ID:
+    # ── Monitored source user ─────────────────────────────────────────────
+    if member.id == config.SOURCE_USER_ID:
+        in_source_now = after.channel is not None and after.channel.id == config.SOURCE_CHANNEL_ID
+        was_in_source = before.channel is not None and before.channel.id == config.SOURCE_CHANNEL_ID
+
+        if in_source_now and not bridge.is_running:
+            logger.info("Monitored user joined source channel.  Starting bridge …")
+            try:
+                await bridge.start()
+            except Exception as exc:
+                logger.exception("Failed to start bridge: %s", exc)
+
+        elif was_in_source and not in_source_now and bridge.is_running:
+            logger.info("Monitored user left source channel.  Stopping bridge …")
+            await bridge.stop()
+            logger.info("Bridge stopped.  Waiting for user to rejoin …")
+            asyncio.ensure_future(bridge._idle_watchdog())
         return
 
-    in_source_now = after.channel is not None and after.channel.id == config.SOURCE_CHANNEL_ID
-    was_in_source = before.channel is not None and before.channel.id == config.SOURCE_CHANNEL_ID
-
-    if in_source_now and not bridge.is_running:
-        logger.info("Monitored user joined source channel.  Starting bridge …")
-        try:
-            await bridge.start()
-        except Exception as exc:
-            logger.exception("Failed to start bridge: %s", exc)
-
-    elif was_in_source and not in_source_now and bridge.is_running:
-        logger.info("Monitored user left source channel.  Stopping bridge …")
-        await bridge.stop()
-        logger.info("Bridge stopped.  Waiting for user to rejoin …")
-        asyncio.ensure_future(bridge._idle_watchdog())
+    # ── Any member joining a target channel ───────────────────────────────
+    # When a user joins (or switches into) a target channel while the bridge
+    # is live, Discord may not deliver the bot's existing audio stream to
+    # them.  Refreshing the player forces Discord to re-broadcast the bot's
+    # SSRC and speaking state so the new arrival receives audio.
+    if bridge.is_running and after.channel is not None:
+        if after.channel.id in bridge.target_channel_ids():
+            joined_new = before.channel is None or before.channel.id != after.channel.id
+            if joined_new:
+                logger.info(
+                    "Member '%s' joined target channel '%s' – refreshing player …",
+                    member.display_name, after.channel.name,
+                )
+                await bridge.refresh_player_for_guild(member.guild.id)
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Run

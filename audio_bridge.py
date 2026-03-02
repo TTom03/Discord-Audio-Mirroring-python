@@ -215,6 +215,46 @@ class AudioBridge:
 
     # ── Public API ────────────────────────────────────────────────────────
 
+    def target_channel_ids(self) -> set[int]:
+        """Return the set of target channel IDs currently configured."""
+        return {t["channel_id"] for t in self.targets}
+
+    async def refresh_player_for_guild(self, guild_id: int) -> None:
+        """
+        Stop and immediately restart the audio player for the target that
+        belongs to *guild_id*.  This forces Discord's voice server to
+        re-broadcast the bot's SSRC and speaking state to every member
+        in the channel, which fixes the case where a user who was already
+        in the channel (or whose client missed the original speaking-state
+        event) cannot hear the bot.
+        """
+        if not self._running:
+            return
+
+        target_index = next(
+            (i for i, t in enumerate(self.targets) if t["guild_id"] == guild_id),
+            None,
+        )
+        if target_index is None:
+            return
+
+        vc = self._target_vcs[target_index] if target_index < len(self._target_vcs) else None
+        if vc is None or not vc.is_connected():
+            return
+
+        logger.info(
+            "Refreshing player for target %d (guild %d) to re-announce speaking state …",
+            target_index + 1, guild_id,
+        )
+        try:
+            vc.stop()
+            await asyncio.sleep(0.1)  # let the player thread exit cleanly
+            src = QueueAudioSource(self._audio_queues[target_index], self.jitter_buffer_frames)
+            self._sources[target_index] = src
+            vc.play(src, after=lambda err, idx=target_index: self._on_player_error(err, idx))
+        except Exception as exc:
+            logger.warning("refresh_player_for_guild(%d) failed: %s", guild_id, exc)
+
     async def _safe_connect(self, channel: discord.VoiceChannel, mute: bool = False) -> discord.VoiceClient:
         """
         Connect to a voice channel.
